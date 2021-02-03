@@ -21,6 +21,8 @@ package boofcv.struct.feature;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Arrays;
+
 /**
  * Feature description storage in an array of bytes.
  *
@@ -35,6 +37,10 @@ public abstract class TupleDesc_I8<TD extends TupleDesc_I8> implements TupleDesc
 
 	public void setTo( byte... value ) {
 		System.arraycopy(value, 0, this.value, 0, this.value.length);
+	}
+
+	public void fill( byte value ) {
+		Arrays.fill(this.value, value);
 	}
 
 	@Override
