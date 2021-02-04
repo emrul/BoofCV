@@ -18,8 +18,15 @@
 
 package boofcv.alg.scene.vocabtree;
 
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.fail;
+
 /**
  * @author Peter Abeles
- **/
-public class LookupLeafHierarchicalTree {
+ */
+class TestHierarchicalVocabularyTree {
+	@Test void implement() {
+		fail("Implement");
+	}
 }

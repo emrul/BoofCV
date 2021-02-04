@@ -18,9 +18,15 @@
 
 package boofcv.alg.scene.vocabtree;
 
+import boofcv.misc.BoofMiscOps;
 import boofcv.struct.feature.TupleDesc;
+import boofcv.struct.kmeans.PackedArray;
+import org.ddogleg.clustering.PointDistance;
 import org.ddogleg.struct.DogArray;
+import org.ddogleg.struct.DogArray_I32;
 import org.ddogleg.struct.FastArray;
+
+import static boofcv.misc.BoofMiscOps.checkTrue;
 
 /**
  * A hierarchical tree which discretizes an N-Dimensional space. Each region in each node is defined by
@@ -41,8 +47,9 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
 	public final FastArray<Leaf> leaves;
 
 	// list of mean descriptors that define the discretized regions
-	protected final DogArray<TD> descriptions;
+	protected final PackedArray<TD> descriptions;
 	// Nodes in the hierarchical tree
+	// Node[0] is the root node
 	protected final DogArray<Node> nodes = new DogArray<>(Node::new, Node::reset);
 
 	// https://www.cse.unr.edu/~bebis/CS491Y/Papers/Nister06.pdf
@@ -51,39 +58,123 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
 	// http://webdiis.unizar.es/~dorian/index.php?p=31
 	// https://github.com/epignatelli/scalable-recognition-with-a-vocabulary-tree
 
-	public HierarchicalVocabularyTree( DogArray<TD> descriptions, Class<Leaf> leafType ) {
+	public HierarchicalVocabularyTree( PackedArray<TD> descriptions, Class<Leaf> leafType ) {
 		this.descriptions = descriptions;
 		leaves = new FastArray<>(leafType);
 	}
 
-	public void findLeaf( TD target, Address result ) {
-
+	/**
+	 * Adds a new node to the graph and returns its index
+	 *
+	 * @param parentIndex Index of parent node.
+	 * @param branch Which branch off the parent does it map to.
+	 * @param desc The mean/description for this region
+	 * @return Index of the newly added node
+	 */
+	public int addNode( int parentIndex, int branch, TD desc ) {
+		int index = nodes.size;
+		Node n = nodes.grow();
+		n.branch = branch;
+		n.indexDescription = descriptions.size();
+		descriptions.addCopy(desc);
+		Node parent = nodes.get(parentIndex);
+		checkTrue(branch == parent.childrenIndexes.size, "Branch index must map to child index");
+		n.parent = parentIndex;
+		parent.childrenIndexes.add(index);
+		return index;
 	}
 
+	/**
+	 * Searches for the leaf node that this point belongs to
+	 *
+	 * @param point (Input) Point used in the search
+	 * @param distanceFunction (Input) Function used to determine distance between nodes
+	 * @return The found leaf node
+	 */
+	public Node lookupLeafNode( TD point, PointDistance<TD> distanceFunction ) {
+		int level = 0;
+		Node parent = nodes.get(0);
+
+		while (level < maximumLevels) {
+			if (parent.childrenIndexes.isEmpty()) {
+				return parent;
+			}
+
+			int bestNodeIdx = -1;
+			double bestDistance = Double.MAX_VALUE;
+
+			for (int childIdx = 0; childIdx < parent.childrenIndexes.size; childIdx++) {
+				int nodeIdx = parent.childrenIndexes.get(childIdx);
+
+				TD desc = descriptions.getTemp(nodes.get(nodeIdx).indexDescription);
+				double distance = distanceFunction.distance(point, desc);
+				if (distance > bestDistance)
+					continue;
+
+				bestNodeIdx = nodeIdx;
+				bestDistance = distance;
+			}
+
+			parent = nodes.get(bestNodeIdx);
+			level++;
+		}
+
+		throw new RuntimeException("Invalid tree. Max depth exceeded searching for leaf");
+	}
+
+	/**
+	 * Ensures it has a valid configuration
+	 */
+	public void checkConfig() {
+		BoofMiscOps.checkTrue(branchFactor > 0, "branchFactor needs to be set");
+		BoofMiscOps.checkTrue(maximumLevels > 0, "maximumLevels needs to be set");
+	}
+
+	/**
+	 * Clears references to initial state but keeps allocated memory
+	 */
 	public void reset() {
-
+		leaves.reset();
+		descriptions.reset();
+		nodes.reset();
 	}
 
-	public void setTo(HierarchicalVocabularyTree<TD,Leaf> src) {
+	public void setTo( HierarchicalVocabularyTree<TD, Leaf> src ) {
+		branchFactor = src.branchFactor;
+		maximumLevels = src.maximumLevels;
 
+		// How to handle copy of leaves?
+		// Is this function needed
 	}
 
-	/** Specifies a specific node and child */
-	public static class Address {
-		public int indexNode;
-		public int child;
-	}
-
-	protected static class Node {
+	/** Node in the Covabulary tree */
+	public static class Node {
+		// Which branch/child in the parent it is
+		public int branch;
+		// Index of the parent. -1 if this is at the root of the tree
+		public int parent;
 		// index of the first mean in the list of descriptions. Means in a set are consecutive.
-		public int indexMean;
+		public int indexDescription;
 		// index of the first child in the list of nodes. Children are consecutive.
 		// If at the last level then this will point to an index in leaves
-		public int indexChildren;
+		public final DogArray_I32 childrenIndexes = new DogArray_I32();
+		// Index of the leaf data it points to
+		public int leaf;
 
 		public void reset() {
-			indexMean = -1;
-			indexChildren = -1;
+			branch = -1;
+			parent = -1;
+			leaf = -1;
+			indexDescription = -1;
+			childrenIndexes.reset();
+		}
+
+		public void setTo( Node src ) {
+			branch = src.branch;
+			parent = src.parent;
+			leaf = src.leaf;
+			indexDescription = src.indexDescription;
+			childrenIndexes.setTo(src.childrenIndexes);
 		}
 	}
 }

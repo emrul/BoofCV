@@ -16,19 +16,17 @@
  * limitations under the License.
  */
 
-package boofcv.alg.scene.vocabtree;
+package boofcv.struct.kmeans;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author Peter Abeles
- **/
-public class ScalableVocabularyTree {
-
-
-
-	// https://www.cse.unr.edu/~bebis/CS491Y/Papers/Nister06.pdf
-	// https://sourceforge.net/projects/vocabularytree/
-	// https://sourceforge.net/p/vocabularytree/code-0/HEAD/tree/trunk/py_vt/src/
-	// http://webdiis.unizar.es/~dorian/index.php?p=31
-	// https://github.com/epignatelli/scalable-recognition-with-a-vocabulary-tree
-
+ */
+class TestComputeMeanTuple_F64 {
+	@Test void implement() {
+		fail("Implement");
+	}
 }
