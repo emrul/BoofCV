@@ -18,11 +18,13 @@
 
 package boofcv.alg.scene.vocabtree;
 
+import boofcv.alg.scene.vocabtree.HierarchicalVocabularyTree.Node;
 import boofcv.misc.BoofLambdas;
 import boofcv.struct.feature.TupleDesc;
 import boofcv.struct.kmeans.PackedArray;
 import org.ddogleg.clustering.kmeans.StandardKMeans;
 import org.ddogleg.struct.DogArray;
+import org.ddogleg.struct.DogArray_F64;
 import org.ddogleg.struct.DogArray_I32;
 
 import java.util.List;
@@ -39,9 +41,16 @@ public class LearnHierarchicalTree<TD extends TupleDesc<TD>> {
 	public int minimumPointsInNode = 0;
 
 	// Stores points for a branch at each level in DFS
-	protected DogArray<PackedArray<TD>> listPoints;
+	protected final DogArray<PackedArray<TD>> listPoints;
 	// k-means instance for each level in tree
-	protected DogArray<StandardKMeans<TD>> listKMeans;
+	protected final DogArray<StandardKMeans<TD>> listKMeans;
+	// Storage for weights
+	protected final DogArray<DogArray_F64> listWeights = new DogArray<>(DogArray_F64::new);
+
+	//---------- Workspace variables
+
+	// Total points in the input list/dataset
+	protected int totalPoints;
 
 	/**
 	 * Constructor which specifies factories for internal data structures which are dynamic bsaed on the
@@ -50,11 +59,10 @@ public class LearnHierarchicalTree<TD extends TupleDesc<TD>> {
 	 * @param factoryStorage point storage
 	 * @param factoryKMeans k-means
 	 */
-	public LearnHierarchicalTree( BoofLambdas.Factory<PackedArray<TD>> factoryStorage,
-								  BoofLambdas.Factory<StandardKMeans<TD>> factoryKMeans ) {
-
-		listPoints = new DogArray<>(factoryStorage::newInstance, PackedArray::reset);
-		listKMeans = new DogArray<>(factoryKMeans::newInstance);
+	public LearnHierarchicalTree(  BoofLambdas.Factory<PackedArray<TD>> factoryStorage,
+								   BoofLambdas.Factory<StandardKMeans<TD>> factoryKMeans ) {
+		this.listPoints = new DogArray<>(factoryStorage::newInstance, PackedArray::reset);
+		this.listKMeans = new DogArray<>(factoryKMeans::newInstance);
 	}
 
 	/**
@@ -67,6 +75,7 @@ public class LearnHierarchicalTree<TD extends TupleDesc<TD>> {
 		// Initialize data structures
 		tree.checkConfig();
 		tree.reset();
+		this.totalPoints = points.size();
 
 		// The first node is the root. It needs to
 		tree.nodes.grow();
@@ -75,6 +84,7 @@ public class LearnHierarchicalTree<TD extends TupleDesc<TD>> {
 		listPoints.resize(tree.maximumLevels - 1);
 		// each level has it's own k-means instance
 		listKMeans.resize(tree.maximumLevels);
+		listWeights.resize(tree.maximumLevels);
 
 		// Construct the tree
 		processLevel(points, tree, 0, 0);
@@ -113,8 +123,21 @@ public class LearnHierarchicalTree<TD extends TupleDesc<TD>> {
 		if (level == tree.maximumLevels - 1)
 			return;
 
+		Node parent = tree.nodes.get(parentNodeIdx);
+		processChildren(tree, level, parent, pointsInParent, clusterMeans, assignments, pointsInBranch);
+	}
+
+	/**
+	 * Goes through each child/branch one at a time splits the points into a subset for each child's region.
+	 * Then processes the next level in the pyramid for each branch.
+	 */
+	private void processChildren( HierarchicalVocabularyTree<TD, ?> tree,
+								  int level,
+								  Node parent, PackedArray<TD> pointsInParent,
+								  List<TD> clusterMeans, DogArray_I32 assignments,
+								  PackedArray<TD> pointsInBranch ) {
+
 		// Go through all the (just created) children in the parent
-		HierarchicalVocabularyTree.Node parent = tree.nodes.get(parentNodeIdx);
 		for (int label = 0; label < clusterMeans.size(); label++) {
 			// Get the index of the child node
 			int nodeIdx = parent.childrenIndexes.get(label);

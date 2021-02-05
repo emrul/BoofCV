@@ -18,6 +18,7 @@
 
 package boofcv.alg.scene.vocabtree;
 
+import boofcv.misc.BoofLambdas;
 import boofcv.misc.BoofMiscOps;
 import boofcv.struct.feature.TupleDesc;
 import boofcv.struct.kmeans.PackedArray;
@@ -35,7 +36,7 @@ import static boofcv.misc.BoofMiscOps.checkTrue;
  *
  * @author Peter Abeles
  **/
-public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
+public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 
 	/** Number of children for each node */
 	public int branchFactor = -1;
@@ -43,24 +44,18 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
 	/** Maximum number of levels in the tree */
 	public int maximumLevels = -1;
 
-	/** All the leaves in the tree */
-	public final FastArray<Leaf> leaves;
+	/** Optional data associated with any of the nodes */
+	public final FastArray<Data> listData;
 
 	// list of mean descriptors that define the discretized regions
-	protected final PackedArray<TD> descriptions;
+	public final PackedArray<TD> descriptions;
 	// Nodes in the hierarchical tree
 	// Node[0] is the root node
-	protected final DogArray<Node> nodes = new DogArray<>(Node::new, Node::reset);
+	public final DogArray<Node> nodes = new DogArray<>(Node::new, Node::reset);
 
-	// https://www.cse.unr.edu/~bebis/CS491Y/Papers/Nister06.pdf
-	// https://sourceforge.net/projects/vocabularytree/
-	// https://sourceforge.net/p/vocabularytree/code-0/HEAD/tree/trunk/py_vt/src/
-	// http://webdiis.unizar.es/~dorian/index.php?p=31
-	// https://github.com/epignatelli/scalable-recognition-with-a-vocabulary-tree
-
-	public HierarchicalVocabularyTree( PackedArray<TD> descriptions, Class<Leaf> leafType ) {
+	public HierarchicalVocabularyTree( PackedArray<TD> descriptions, Class<Data> leafType ) {
 		this.descriptions = descriptions;
-		leaves = new FastArray<>(leafType);
+		listData = new FastArray<>(leafType);
 	}
 
 	/**
@@ -74,6 +69,8 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
 	public int addNode( int parentIndex, int branch, TD desc ) {
 		int index = nodes.size;
 		Node n = nodes.grow();
+		// assign to ID to the index. An alternative would be to use level + branch.
+		n.id = index;
 		n.branch = branch;
 		n.indexDescription = descriptions.size();
 		descriptions.addCopy(desc);
@@ -91,7 +88,7 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
 	 * @param distanceFunction (Input) Function used to determine distance between nodes
 	 * @return The found leaf node
 	 */
-	public Node lookupLeafNode( TD point, PointDistance<TD> distanceFunction ) {
+	public Node searchToLeaf( TD point, PointDistance<TD> distanceFunction ) {
 		int level = 0;
 		Node parent = nodes.get(0);
 
@@ -122,6 +119,51 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
 		throw new RuntimeException("Invalid tree. Max depth exceeded searching for leaf");
 	}
 
+	public int searchPathToLeaf( TD point, PointDistance<TD> distanceFunction, BoofLambdas.ProcessObject<Node> results ) {
+		return 0;
+	}
+
+	/**
+	 * Traverses every node in the graph (excluding the root) in a depth first manor.
+	 * @param op Every node is feed into this function
+	 * @return
+	 */
+	public void traverseGraphDepthFirst( BoofLambdas.ProcessObject<Node> op ) {
+		FastArray<Node> queue = new FastArray<>(Node.class,maximumLevels);
+		queue.add(nodes.get(0));
+		DogArray_I32 branches = new DogArray_I32(maximumLevels);
+		branches.add(0);
+
+		// NOTE: Root node is intentionally skipped since it will contain all the features and has no information
+
+		while( !nodes.isEmpty() ) {
+			Node n = nodes.getTail();
+			int branch = branches.getTail();
+
+			// If there are no more children to traverse in this node go back to the parent
+			if (branch >= n.childrenIndexes.size) {
+				nodes.removeTail();
+				branches.removeTail();
+				continue;
+			}
+
+			// next iteration will explore the next branch
+			branches.set(branches.size-1, branch+1);
+
+			// Pass in the child
+			n = nodes.get(n.childrenIndexes.get(branch));
+			op.process(n);
+
+			// Can't dive into any children/branches if it's a leaf
+			if (n.isLeaf())
+				continue;
+
+			queue.add(n);
+			branches.add(0);
+		}
+	}
+
+
 	/**
 	 * Ensures it has a valid configuration
 	 */
@@ -134,12 +176,12 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
 	 * Clears references to initial state but keeps allocated memory
 	 */
 	public void reset() {
-		leaves.reset();
+		listData.reset();
 		descriptions.reset();
 		nodes.reset();
 	}
 
-	public void setTo( HierarchicalVocabularyTree<TD, Leaf> src ) {
+	public void setTo( HierarchicalVocabularyTree<TD, Data> src ) {
 		branchFactor = src.branchFactor;
 		maximumLevels = src.maximumLevels;
 
@@ -147,32 +189,54 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Leaf> {
 		// Is this function needed
 	}
 
-	/** Node in the Covabulary tree */
+	/**
+	 * Adds data to the node
+	 * @param node Node that data is added to
+	 * @param data The data which is not associated with it
+	 */
+	public void addData( Node node, Data data ) {
+		BoofMiscOps.checkTrue(node.dataIdx<0);
+		node.dataIdx = listData.size;
+		listData.add(data);
+	}
+
+	/** Node in the Vocabulary tree */
 	public static class Node {
+		// How useful a match to this node is. Higher the weight, more unique it is typically.
+		public double weight;
+		// The unique ID assigned to this node
+		public int id;
 		// Which branch/child in the parent it is
 		public int branch;
-		// Index of the parent. -1 if this is at the root of the tree
+		// Index of the parent. The root node will have -1 here
 		public int parent;
+		// Index of data associated with this node
+		public int dataIdx;
 		// index of the first mean in the list of descriptions. Means in a set are consecutive.
 		public int indexDescription;
 		// index of the first child in the list of nodes. Children are consecutive.
 		// If at the last level then this will point to an index in leaves
 		public final DogArray_I32 childrenIndexes = new DogArray_I32();
-		// Index of the leaf data it points to
-		public int leaf;
+
+		public boolean isLeaf() {
+			return childrenIndexes.isEmpty();
+		}
 
 		public void reset() {
+			weight = -1;
+			id = -1;
 			branch = -1;
 			parent = -1;
-			leaf = -1;
+			dataIdx = -1;
 			indexDescription = -1;
 			childrenIndexes.reset();
 		}
 
 		public void setTo( Node src ) {
+			id = src.id;
 			branch = src.branch;
 			parent = src.parent;
-			leaf = src.leaf;
+			dataIdx = src.dataIdx;
 			indexDescription = src.indexDescription;
 			childrenIndexes.setTo(src.childrenIndexes);
 		}
