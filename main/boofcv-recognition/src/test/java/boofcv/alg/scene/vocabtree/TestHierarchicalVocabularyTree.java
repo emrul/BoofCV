@@ -26,7 +26,27 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Peter Abeles
  */
 class TestHierarchicalVocabularyTree {
-	@Test void implement() {
+	@Test void addNode() {
+		fail("Implement");
+	}
+
+	@Test void searchToLeaf() {
+		fail("Implement");
+	}
+
+	@Test void searchPathToLeaf() {
+		fail("Implement");
+	}
+
+	@Test void traverseGraphDepthFirst() {
+		fail("Implement");
+	}
+
+	@Test void addData() {
+		fail("Implement");
+	}
+
+	@Test void reset() {
 		fail("Implement");
 	}
 }

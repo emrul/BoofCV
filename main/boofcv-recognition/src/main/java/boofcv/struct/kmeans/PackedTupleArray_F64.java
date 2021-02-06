@@ -20,12 +20,15 @@ package boofcv.struct.kmeans;
 
 import boofcv.struct.feature.TupleDesc_F64;
 import org.ddogleg.struct.DogArray_F64;
-import org.ddogleg.struct.LArrayAccessor;
 
 /**
+ * Stores a set of tuples in a single continuous array. This is intended to make storage of a large number of tuples
+ * more memory efficient by removing all the packaging that Java adds to a class. The memory is also continuous,
+ * opening the possibility of further optimizations.
+ *
  * @author Peter Abeles
  */
-public class PackedTupleArray_F64 implements LArrayAccessor<TupleDesc_F64> {
+public class PackedTupleArray_F64 implements PackedArray<TupleDesc_F64> {
 	// degree-of-freedom, number of elements in the tuple
 	public final int dof;
 	// Stores tuple in a single continuous array
@@ -34,7 +37,7 @@ public class PackedTupleArray_F64 implements LArrayAccessor<TupleDesc_F64> {
 	public final TupleDesc_F64 temp;
 
 	// Number of tuples stored in the array
-	protected int arraySize;
+	protected int numElements;
 
 	public PackedTupleArray_F64( int dof ) {
 		this.dof = dof;
@@ -43,33 +46,34 @@ public class PackedTupleArray_F64 implements LArrayAccessor<TupleDesc_F64> {
 		array.resize(0);
 	}
 
-	public void reset() {
-		arraySize = 0;
+	@Override public void reset() {
+		numElements = 0;
 		array.reset();
 	}
 
-	public void reserve( int numTuples ) {
+	@Override public void reserve( int numTuples ) {
 		array.reserve(numTuples*dof);
 	}
 
-	public void add( TupleDesc_F64 tuple ) {
-		array.addAll(tuple.value, 0, dof);
+	@Override public void addCopy( TupleDesc_F64 element ) {
+		array.addAll(element.value, 0, dof);
+		numElements++;
 	}
 
 	@Override public TupleDesc_F64 getTemp( int index ) {
-		System.arraycopy(array.data,index*dof,temp.value,0,dof);
+		System.arraycopy(array.data, index*dof, temp.value, 0, dof);
 		return temp;
 	}
 
 	@Override public void getCopy( int index, TupleDesc_F64 dst ) {
-		System.arraycopy(array.data,index*dof,dst.value,0,dof);
+		System.arraycopy(array.data, index*dof, dst.value, 0, dof);
 	}
 
 	@Override public void copy( TupleDesc_F64 src, TupleDesc_F64 dst ) {
-		System.arraycopy(src.value,0,dst.value,0,dof);
+		System.arraycopy(src.value, 0, dst.value, 0, dof);
 	}
 
 	@Override public int size() {
-		return arraySize;
+		return numElements;
 	}
 }

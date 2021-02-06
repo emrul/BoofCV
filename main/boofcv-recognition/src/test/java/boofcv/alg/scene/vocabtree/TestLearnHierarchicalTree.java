@@ -22,11 +22,26 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-/**
- * @author Peter Abeles
- */
 class TestLearnHierarchicalTree {
-	@Test void implement() {
+	/**
+	 * K-means will give perfect seeds for a single level scenario.
+	 */
+	@Test void single_level_perfect_seeds() {
+		fail("Implement");
+	}
+
+	/**
+	 * Two levels, with four distinct clusters evenly spaced
+	 */
+	@Test void two_levels_four_clusters() {
+		fail("Implement");
+	}
+
+	@Test void many_levels_random_data() {
+		fail("Implement");
+	}
+
+	@Test void processChildren() {
 		fail("Implement");
 	}
 }

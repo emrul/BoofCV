@@ -35,6 +35,10 @@ public class TupleDesc_F32 implements TupleDesc<TupleDesc_F32> {
 		this.value = new float[numFeatures];
 	}
 
+	public TupleDesc_F32( float ...src ) {
+		this.value = src.clone();
+	}
+
 	protected TupleDesc_F32() {}
 
 	public void setTo( float... value ) {

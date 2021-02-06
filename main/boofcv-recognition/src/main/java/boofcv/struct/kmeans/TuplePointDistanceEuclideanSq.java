@@ -25,27 +25,22 @@ import boofcv.struct.feature.TupleDesc_F64;
 import org.ddogleg.clustering.PointDistance;
 
 /**
- * Distance between Tuple descriptors for {@link PointDistance}.
+ * Euclidean squared distance between Tuple descriptors for {@link PointDistance}.
  *
  * @author Peter Abeles
  */
 public abstract class TuplePointDistanceEuclideanSq<T extends TupleDesc<T>> implements PointDistance<T> {
-
-	@Override public double valueAt( T point, int index ) {
-		return point.getDouble(index);
-	}
-
 	@Override public PointDistance<T> newInstanceThread() {return this;}
 
 	public static class F64 extends TuplePointDistanceEuclideanSq<TupleDesc_F64> {
 		@Override public double distance( TupleDesc_F64 a, TupleDesc_F64 b ) {
-			return DescriptorDistance.euclideanSq(a,b);
+			return DescriptorDistance.euclideanSq(a, b);
 		}
 	}
 
 	public static class F32 extends TuplePointDistanceEuclideanSq<TupleDesc_F32> {
 		@Override public double distance( TupleDesc_F32 a, TupleDesc_F32 b ) {
-			return DescriptorDistance.euclideanSq(a,b);
+			return DescriptorDistance.euclideanSq(a, b);
 		}
 	}
 }

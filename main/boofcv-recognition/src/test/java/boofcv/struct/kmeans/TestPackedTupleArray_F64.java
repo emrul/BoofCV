@@ -18,15 +18,36 @@
 
 package boofcv.struct.kmeans;
 
-import org.junit.jupiter.api.Test;
+import boofcv.struct.feature.TupleDesc_F64;
+import org.ejml.UtilEjml;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
-/**
- * @author Peter Abeles
- */
-class TestPackedTupleArray_F64 {
-	@Test void implement() {
-		fail("Implement");
+class TestPackedTupleArray_F64 extends GenericPackedArrayChecks<TupleDesc_F64> {
+	int DOF = 1;
+
+	@Override protected PackedArray<TupleDesc_F64> createAlg() {
+		return new PackedTupleArray_F64(DOF);
+	}
+
+	@Override protected TupleDesc_F64 createRandomPoint() {
+		var point = new TupleDesc_F64(DOF);
+		point.value[0] = rand.nextGaussian();
+		return point;
+	}
+
+	@Override protected void checkEquals( TupleDesc_F64 a, TupleDesc_F64 b ) {
+		for (int i = 0; i < DOF; i++) {
+			assertEquals(a.value[i], b.value[i], UtilEjml.TEST_F64);
+		}
+	}
+
+	@Override protected void checkNotEquals( TupleDesc_F64 a, TupleDesc_F64 b ) {
+		for (int i = 0; i < DOF; i++) {
+			if (a.value[i] != b.value[i])
+				return;
+		}
+		fail("The tuples are identical");
 	}
 }

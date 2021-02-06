@@ -125,18 +125,18 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 
 	/**
 	 * Traverses every node in the graph (excluding the root) in a depth first manor.
+	 *
 	 * @param op Every node is feed into this function
-	 * @return
 	 */
 	public void traverseGraphDepthFirst( BoofLambdas.ProcessObject<Node> op ) {
-		FastArray<Node> queue = new FastArray<>(Node.class,maximumLevels);
+		FastArray<Node> queue = new FastArray<>(Node.class, maximumLevels);
 		queue.add(nodes.get(0));
 		DogArray_I32 branches = new DogArray_I32(maximumLevels);
 		branches.add(0);
 
 		// NOTE: Root node is intentionally skipped since it will contain all the features and has no information
 
-		while( !nodes.isEmpty() ) {
+		while (!nodes.isEmpty()) {
 			Node n = nodes.getTail();
 			int branch = branches.getTail();
 
@@ -148,7 +148,7 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 			}
 
 			// next iteration will explore the next branch
-			branches.set(branches.size-1, branch+1);
+			branches.set(branches.size - 1, branch + 1);
 
 			// Pass in the child
 			n = nodes.get(n.childrenIndexes.get(branch));
@@ -162,7 +162,6 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 			branches.add(0);
 		}
 	}
-
 
 	/**
 	 * Ensures it has a valid configuration
@@ -181,21 +180,14 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 		nodes.reset();
 	}
 
-	public void setTo( HierarchicalVocabularyTree<TD, Data> src ) {
-		branchFactor = src.branchFactor;
-		maximumLevels = src.maximumLevels;
-
-		// How to handle copy of leaves?
-		// Is this function needed
-	}
-
 	/**
 	 * Adds data to the node
+	 *
 	 * @param node Node that data is added to
 	 * @param data The data which is not associated with it
 	 */
 	public void addData( Node node, Data data ) {
-		BoofMiscOps.checkTrue(node.dataIdx<0);
+		BoofMiscOps.checkTrue(node.dataIdx < 0);
 		node.dataIdx = listData.size;
 		listData.add(data);
 	}
