@@ -30,7 +30,6 @@ import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 import lombok.Getter;
-import lombok.Setter;
 import org.ddogleg.struct.DogArray;
 import org.ddogleg.struct.DogArray_I32;
 
@@ -54,7 +53,7 @@ import java.util.List;
 public class RecognitionVocabularyTreeNister2006<Point> {
 
 	/** Vocabulary Tree */
-	public @Getter @Setter HierarchicalVocabularyTree<Point, LeafData> tree;
+	public @Getter HierarchicalVocabularyTree<Point, LeafData> tree;
 
 	/** List of images added to the database */
 	protected @Getter final DogArray<ImageInfo> imagesDB = new DogArray<>(ImageInfo::new, ImageInfo::reset);
@@ -74,13 +73,26 @@ public class RecognitionVocabularyTreeNister2006<Point> {
 	protected final DogArray_I32 keys = new DogArray_I32();
 
 	/**
+	 * Configures the tree by adding LeafData to all the leaves in the tree then saves a reference for future use
+	 * @param tree Three which is to be used as the database. Saved internally.
+	 */
+	public void initializeTree(HierarchicalVocabularyTree<Point, LeafData> tree) {
+		this.tree = tree;
+		for (int i = 0; i < tree.nodes.size; i++) {
+			if (!tree.nodes.get(i).isLeaf())
+				continue;
+			tree.addData(tree.nodes.get(i), new LeafData());
+		}
+	}
+
+	/**
 	 * Adds a new image to the database.
 	 *
 	 * @param imageID The image's unique ID for later reference
 	 * @param imageFeatures Feature descriptors from an image
 	 * @param cookie Optional user defined data which will be attached to the image
 	 */
-	public void add( int imageID, List<Point> imageFeatures, Object cookie ) {
+	public void addImage( int imageID, List<Point> imageFeatures, Object cookie ) {
 		ImageInfo info = imagesDB.grow();
 		info.imageId = imageID;
 		info.cookie = cookie;
@@ -109,8 +121,10 @@ public class RecognitionVocabularyTreeNister2006<Point> {
 		// Create a description of this image and collect potential matches from leaves
 		describe(imageFeatures, tempDescTermFreq, ( leafNode ) -> {
 			LeafData leafData = tree.listData.get(leafNode.dataIdx);
-			for (int i = 0; i < leafData.images.size(); i++) {
-				ImageInfo c = leafData.images.get(i);
+			keys.resize(leafData.images.size());
+			leafData.images.keys(keys.data);
+			for (int i = 0; i < keys.size(); i++) {
+				ImageInfo c = leafData.images.get(keys.get(i));
 				if (!candidates.add(c.imageId))
 					continue;
 				matchScores.grow().image = c;
@@ -119,7 +133,7 @@ public class RecognitionVocabularyTreeNister2006<Point> {
 
 		for (int i = 0; i < matchScores.size(); i++) {
 			Match m = matchScores.get(i);
-			m.score = distanceL2Norm(tempDescTermFreq, m.image.descTermFreq);
+			m.error = distanceL2Norm(tempDescTermFreq, m.image.descTermFreq);
 		}
 
 		Collections.sort(matchScores.toList());
@@ -127,6 +141,14 @@ public class RecognitionVocabularyTreeNister2006<Point> {
 		return matchScores.get(0);
 	}
 
+	/**
+	 * Given the image features, compute a sparse descriptor for the image and pass in leaf nodes to 'op' for each
+	 * image feature.
+	 *
+	 * @param imageFeatures (Input) All image features in the image
+	 * @param descTermFreq (Output) Sparse TF-IDF descriptor for the image
+	 * @param op Each leaf node for each feature is passed into this function
+	 */
 	protected void describe( List<Point> imageFeatures, TIntFloatMap descTermFreq, BoofLambdas.ProcessObject<Node> op ) {
 		// Reset work variables
 		frequencies.reset();
@@ -150,16 +172,20 @@ public class RecognitionVocabularyTreeNister2006<Point> {
 		}
 
 		//------ Create the TF-IDF descriptor for this image
-		// Compute the sum to ensure the F2-norm of the descriptor is 1
-		double sum = 0.0;
-		for (int i = 0; i < nodeFrequencies.size(); i++) {
-			sum += nodeFrequencies.get(i).sum;
+		// Normalize the vector such that the L2-norm is 1.0
+		keys.resize(nodeFrequencies.size());
+		nodeFrequencies.keys(keys.data);
+		double normL2 = 0.0;
+		for (int i = 0; i < keys.size(); i++) {
+			double x = nodeFrequencies.get(keys.get(i)).sum;
+			normL2 += x*x;
 		}
-		BoofMiscOps.checkTrue(sum != 0.0, "Sum of weights is zero. Something went very wrong");
+		normL2 = Math.sqrt(normL2);
+		BoofMiscOps.checkTrue(normL2 != 0.0, "Sum of weights is zero. Something went very wrong");
 
-		for (int i = 0; i < nodeFrequencies.size(); i++) {
-			Frequency f = nodeFrequencies.get(i);
-			descTermFreq.put(f.node.id, (float)(f.sum/sum));
+		for (int i = 0; i < keys.size(); i++) {
+			Frequency f = nodeFrequencies.get(keys.get(i));
+			descTermFreq.put(f.node.id, (float)(f.sum/normL2));
 		}
 	}
 
@@ -179,13 +205,13 @@ public class RecognitionVocabularyTreeNister2006<Point> {
 
 			float valueA = descA.get(key);
 			float valueB = descB.get(key);
-			if (valueB < 0.0f)
+			if (valueB <= 0.0f)
 				continue;
 
 			sum += valueA*valueB;
 		}
 
-		return 2.0f - 2.0f*sum;
+		return (float)Math.sqrt(2.0f - 2.0f*sum);
 	}
 
 	/** Information about an image stored in the database */
@@ -227,18 +253,18 @@ public class RecognitionVocabularyTreeNister2006<Point> {
 	 * Match and score information.
 	 */
 	public static class Match implements Comparable<Match> {
-		/** Fit score */
-		public float score;
+		/** Fit error. 0.0 = perfect. */
+		public float error;
 		/** Reference to the image in the data base that was matched */
 		public ImageInfo image;
 
 		public void reset() {
-			score = 0;
+			error = 0;
 			image = null;
 		}
 
 		@Override public int compareTo( Match o ) {
-			return Float.compare(o.score, score);
+			return Float.compare(error, o.error);
 		}
 	}
 

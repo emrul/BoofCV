@@ -47,7 +47,7 @@ class TestLearnHierarchicalTree extends BoofStandardJUnit {
 		addCluster(10, 2, 0, points.list);
 
 		// Very simple graph
-		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree();
+		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree(Object.class);
 		tree.branchFactor = 2;
 		tree.maximumLevel = 1;
 		LearnHierarchicalTree<Point2D_F64> alg = createAlg();
@@ -71,7 +71,7 @@ class TestLearnHierarchicalTree extends BoofStandardJUnit {
 		addCluster(10, 3, 0, points.list);
 
 		// Very simple graph
-		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree();
+		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree(Object.class);
 		tree.branchFactor = 2;
 		tree.maximumLevel = 2;
 		LearnHierarchicalTree<Point2D_F64> alg = createAlg();
@@ -101,7 +101,7 @@ class TestLearnHierarchicalTree extends BoofStandardJUnit {
 		}
 
 		// Process the data
-		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree();
+		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree(Object.class);
 		tree.branchFactor = 3;
 		tree.maximumLevel = 4;
 		LearnHierarchicalTree<Point2D_F64> alg = createAlg();
@@ -122,7 +122,7 @@ class TestLearnHierarchicalTree extends BoofStandardJUnit {
 		}
 
 		// Process the data
-		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree();
+		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree(Object.class);
 		tree.branchFactor = 4;
 		tree.maximumLevel = 4;
 		LearnHierarchicalTree<Point2D_F64> alg = createAlg();

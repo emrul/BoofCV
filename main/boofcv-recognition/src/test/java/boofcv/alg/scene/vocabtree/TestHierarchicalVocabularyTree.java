@@ -20,6 +20,7 @@ package boofcv.alg.scene.vocabtree;
 
 import boofcv.alg.scene.vocabtree.HierarchicalVocabularyTree.Node;
 import boofcv.struct.kmeans.PackedArray;
+import boofcv.testing.BoofStandardJUnit;
 import georegression.struct.point.Point2D_F64;
 import org.ddogleg.clustering.PointDistance;
 import org.ejml.UtilEjml;
@@ -30,9 +31,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class TestHierarchicalVocabularyTree {
+public class TestHierarchicalVocabularyTree extends BoofStandardJUnit {
 	@Test void searchPathToLeaf() {
-		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree();
+		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree(Object.class);
 		tree.branchFactor = 2;
 		tree.maximumLevel = 2;
 
@@ -58,7 +59,7 @@ class TestHierarchicalVocabularyTree {
 	}
 
 	@Test void traverseGraphDepthFirst() {
-		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree();
+		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree(Object.class);
 		tree.branchFactor = 2;
 		tree.maximumLevel = 2;
 
@@ -89,7 +90,7 @@ class TestHierarchicalVocabularyTree {
 
 	@Test void addData() {
 		// create a simple graph
-		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree();
+		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree(Object.class);
 		tree.branchFactor = 2;
 		tree.maximumLevel = 2;
 
@@ -110,7 +111,7 @@ class TestHierarchicalVocabularyTree {
 	}
 
 	@Test void reset() {
-		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree();
+		HierarchicalVocabularyTree<Point2D_F64, Object> tree = createTree(Object.class);
 		tree.branchFactor = 2;
 		tree.maximumLevel = 2;
 
@@ -129,8 +130,8 @@ class TestHierarchicalVocabularyTree {
 		assertEquals(2, tree.maximumLevel);
 	}
 
-	public static HierarchicalVocabularyTree<Point2D_F64, Object> createTree() {
-		return new HierarchicalVocabularyTree<>(new PointDistance2D(), new Packed2D(), Object.class);
+	public static <T> HierarchicalVocabularyTree<Point2D_F64, T> createTree(Class<T> type) {
+		return new HierarchicalVocabularyTree<>(new PointDistance2D(), new Packed2D(), type);
 	}
 
 	// @formatter:off

@@ -35,7 +35,7 @@ import java.util.List;
  *
  * Functions must be called in a specific order:
  * <ol>
- *     <li>{@link #initialize}</li>
+ *     <li>{@link #reset}</li>
  *     <li>{@link #addImage}</li>
  *     <li>{@link #fixate()}</li>
  * </ol>
@@ -59,9 +59,9 @@ public class LearnNodeWeights<Point> {
 	int totalImages;
 
 	/**
-	 * Initializes and resets with a new tree
+	 * Initializes and resets with a new tree. Reference to the passed in tree is saved.
 	 */
-	public void initialize( HierarchicalVocabularyTree<Point, ?> tree ) {
+	public void reset( HierarchicalVocabularyTree<Point, ?> tree ) {
 		this.tree = tree;
 		numberOfImagesWithNode.resize(tree.nodes.size, 0);
 		totalImages = 0;
