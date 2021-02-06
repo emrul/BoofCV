@@ -22,7 +22,6 @@ import boofcv.alg.scene.vocabtree.HierarchicalVocabularyTree;
 import boofcv.alg.scene.vocabtree.HierarchicalVocabularyTree.Node;
 import boofcv.misc.BoofLambdas;
 import boofcv.misc.BoofMiscOps;
-import boofcv.struct.feature.TupleDesc;
 import gnu.trove.impl.Constants;
 import gnu.trove.map.TIntFloatMap;
 import gnu.trove.map.TIntObjectMap;
@@ -32,7 +31,6 @@ import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 import lombok.Getter;
 import lombok.Setter;
-import org.ddogleg.clustering.PointDistance;
 import org.ddogleg.struct.DogArray;
 import org.ddogleg.struct.DogArray_I32;
 
@@ -53,15 +51,15 @@ import java.util.List;
  *
  * @author Peter Abeles
  */
-public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
+public class RecognitionVocabularyTreeNister2006<Point> {
 
-	public @Getter @Setter HierarchicalVocabularyTree<TD, LeafData> tree;
-	public @Getter @Setter PointDistance<TD> distanceFunction;
+	/** Vocabulary Tree */
+	public @Getter @Setter HierarchicalVocabularyTree<Point, LeafData> tree;
 
 	/** List of images added to the database */
 	protected @Getter final DogArray<ImageInfo> imagesDB = new DogArray<>(ImageInfo::new, ImageInfo::reset);
 	/** Scores for all candidate images which have been sorted */
-	protected @Getter final DogArray<Match> matchScores = new DogArray<>(Match::new,Match::reset);
+	protected @Getter final DogArray<Match> matchScores = new DogArray<>(Match::new, Match::reset);
 
 	//---------------- Internal Workspace
 
@@ -82,13 +80,13 @@ public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
 	 * @param imageFeatures Feature descriptors from an image
 	 * @param cookie Optional user defined data which will be attached to the image
 	 */
-	public void add( int imageID, List<TD> imageFeatures, Object cookie ) {
+	public void add( int imageID, List<Point> imageFeatures, Object cookie ) {
 		ImageInfo info = imagesDB.grow();
 		info.imageId = imageID;
 		info.cookie = cookie;
 
 		// compute a descriptor for this image while adding it to the leaves
-		describe(imageFeatures, info.descTermFreq, (leafNode)->{
+		describe(imageFeatures, info.descTermFreq, ( leafNode ) -> {
 			// Add the image info to the leaf if it hasn't already been added
 			LeafData leafData = tree.listData.get(leafNode.dataIdx);
 			if (!leafData.images.containsKey(info.imageId)) {
@@ -104,12 +102,12 @@ public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
 	 * @param imageFeatures Feature descriptors from an image
 	 * @return The best matching image with score from the database
 	 */
-	public Match lookup( List<TD> imageFeatures ) {
+	public Match lookup( List<Point> imageFeatures ) {
 		TIntSet candidates = new TIntHashSet();
 		matchScores.reset();
 
 		// Create a description of this image and collect potential matches from leaves
-		describe(imageFeatures, tempDescTermFreq, (leafNode)->{
+		describe(imageFeatures, tempDescTermFreq, ( leafNode ) -> {
 			LeafData leafData = tree.listData.get(leafNode.dataIdx);
 			for (int i = 0; i < leafData.images.size(); i++) {
 				ImageInfo c = leafData.images.get(i);
@@ -129,7 +127,7 @@ public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
 		return matchScores.get(0);
 	}
 
-	protected void describe( List<TD> imageFeatures, TIntFloatMap descTermFreq, BoofLambdas.ProcessObject<Node> op ) {
+	protected void describe( List<Point> imageFeatures, TIntFloatMap descTermFreq, BoofLambdas.ProcessObject<Node> op ) {
 		// Reset work variables
 		frequencies.reset();
 		nodeFrequencies.clear();
@@ -137,7 +135,7 @@ public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
 
 		// Sum of the weight of all graph nodes it sees
 		for (int descIdx = 0; descIdx < imageFeatures.size(); descIdx++) {
-			int leafNodeIdx = tree.searchPathToLeaf(imageFeatures.get(descIdx), distanceFunction, ( node ) -> {
+			int leafNodeIdx = tree.searchPathToLeaf(imageFeatures.get(descIdx), ( node ) -> {
 				Frequency f = nodeFrequencies.get(node.id);
 				if (f == null) {
 					f = frequencies.grow();
@@ -169,7 +167,7 @@ public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
 	 * Computes L2-Norm for score between the two descriptions. Searches for common non-zero elements between
 	 * the two then uses the simplified equation from [1].
 	 */
-	public float distanceL2Norm(TIntFloatMap descA, TIntFloatMap descB) {
+	public float distanceL2Norm( TIntFloatMap descA, TIntFloatMap descB ) {
 		// Get the key and make sure it doesn't declare new memory
 		keys.resize(descA.size());
 		descA.keys(keys.data);
@@ -181,7 +179,7 @@ public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
 
 			float valueA = descA.get(key);
 			float valueB = descB.get(key);
-			if (valueB<0.0f)
+			if (valueB < 0.0f)
 				continue;
 
 			sum += valueA*valueB;
@@ -194,7 +192,7 @@ public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
 	public static class ImageInfo {
 		/** TF-IDF description of the image. Default -1 for no key and no value. */
 		public TIntFloatMap descTermFreq = new TIntFloatHashMap(
-				Constants.DEFAULT_CAPACITY,Constants.DEFAULT_LOAD_FACTOR,-1,-1);
+				Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1, -1);
 
 		/** Use specified data associated with this image */
 		public Object cookie;
@@ -240,7 +238,7 @@ public class RecognitionVocabularyTreeNister2006<TD extends TupleDesc<TD>> {
 		}
 
 		@Override public int compareTo( Match o ) {
-			return Float.compare(o.score,score);
+			return Float.compare(o.score, score);
 		}
 	}
 

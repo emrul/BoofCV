@@ -20,12 +20,10 @@ package boofcv.alg.scene.nister2006;
 
 import boofcv.alg.scene.vocabtree.HierarchicalVocabularyTree;
 import boofcv.alg.scene.vocabtree.HierarchicalVocabularyTree.Node;
-import boofcv.struct.feature.TupleDesc;
 import gnu.trove.iterator.TIntIterator;
 import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 import lombok.Getter;
-import org.ddogleg.clustering.PointDistance;
 import org.ddogleg.struct.DogArray_I32;
 
 import java.util.List;
@@ -46,12 +44,9 @@ import java.util.List;
  *
  * @author Peter Abeles
  */
-public class LearnNodeWeights<TD extends TupleDesc<TD>> {
-	// Tree which has been learned already but with unspecified weights
-	protected @Getter HierarchicalVocabularyTree<TD, ?> tree;
-
-	// Used to compute the distance between two feature descriptions
-	protected @Getter PointDistance<TD> distanceFunction;
+public class LearnNodeWeights<Point> {
+	/** Tree which has been learned already but with unspecified weights */
+	protected @Getter HierarchicalVocabularyTree<Point, ?> tree;
 
 	//---------------- Internal Workspace
 
@@ -63,14 +58,10 @@ public class LearnNodeWeights<TD extends TupleDesc<TD>> {
 	// Total number of images used to train the tree/passed in to this class
 	int totalImages;
 
-	public LearnNodeWeights( PointDistance<TD> distanceFunction ) {
-		this.distanceFunction = distanceFunction;
-	}
-
 	/**
 	 * Initializes and resets with a new tree
 	 */
-	public void initialize( HierarchicalVocabularyTree<TD, ?> tree) {
+	public void initialize( HierarchicalVocabularyTree<Point, ?> tree ) {
 		this.tree = tree;
 		numberOfImagesWithNode.resize(tree.nodes.size, 0);
 		totalImages = 0;
@@ -82,7 +73,7 @@ public class LearnNodeWeights<TD extends TupleDesc<TD>> {
 	 *
 	 * @param descriptors Set of all image feature descriptors for a single image
 	 */
-	public void addImage( List<TD> descriptors ) {
+	public void addImage( List<Point> descriptors ) {
 		// Increment image counter
 		totalImages++;
 
@@ -91,8 +82,7 @@ public class LearnNodeWeights<TD extends TupleDesc<TD>> {
 
 		// Mark nodes that descriptors pass through as being a member of this image
 		for (int descIdx = 0; descIdx < descriptors.size(); descIdx++) {
-			tree.searchPathToLeaf(descriptors.get(descIdx), distanceFunction,
-					( node ) -> nodesInImage.add(node.id));
+			tree.searchPathToLeaf(descriptors.get(descIdx), ( node ) -> nodesInImage.add(node.id));
 		}
 
 		// Number of times each leaf node in the graph is seen at least once in an image

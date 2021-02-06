@@ -20,7 +20,6 @@ package boofcv.alg.scene.vocabtree;
 
 import boofcv.misc.BoofLambdas;
 import boofcv.misc.BoofMiscOps;
-import boofcv.struct.feature.TupleDesc;
 import boofcv.struct.kmeans.PackedArray;
 import org.ddogleg.clustering.PointDistance;
 import org.ddogleg.struct.DogArray;
@@ -36,26 +35,33 @@ import static boofcv.misc.BoofMiscOps.checkTrue;
  *
  * @author Peter Abeles
  **/
-public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
+public class HierarchicalVocabularyTree<Point, Data> {
 
 	/** Number of children for each node */
 	public int branchFactor = -1;
 
 	/** Maximum number of levels in the tree */
-	public int maximumLevels = -1;
+	public int maximumLevel = -1;
 
 	/** Optional data associated with any of the nodes */
 	public final FastArray<Data> listData;
 
+	/** Computes distance between two points. Together with the 'mean' points, this defines the sub-regions */
+	public final PointDistance<Point> distanceFunction;
+
 	// list of mean descriptors that define the discretized regions
-	public final PackedArray<TD> descriptions;
+	public final PackedArray<Point> descriptions;
 	// Nodes in the hierarchical tree
 	// Node[0] is the root node
 	public final DogArray<Node> nodes = new DogArray<>(Node::new, Node::reset);
 
-	public HierarchicalVocabularyTree( PackedArray<TD> descriptions, Class<Data> leafType ) {
+	public HierarchicalVocabularyTree( PointDistance<Point> distanceFunction,
+									   PackedArray<Point> descriptions,
+									   Class<Data> leafType ) {
+		this.distanceFunction = distanceFunction;
 		this.descriptions = descriptions;
 		listData = new FastArray<>(leafType);
+		reset();
 	}
 
 	/**
@@ -66,13 +72,13 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 	 * @param desc The mean/description for this region
 	 * @return Index of the newly added node
 	 */
-	public int addNode( int parentIndex, int branch, TD desc ) {
+	public int addNode( int parentIndex, int branch, Point desc ) {
 		int index = nodes.size;
 		Node n = nodes.grow();
 		// assign to ID to the index. An alternative would be to use level + branch.
 		n.id = index;
 		n.branch = branch;
-		n.indexDescription = descriptions.size();
+		n.descIdx = descriptions.size();
 		descriptions.addCopy(desc);
 		Node parent = nodes.get(parentIndex);
 		checkTrue(branch == parent.childrenIndexes.size, "Branch index must map to child index");
@@ -82,28 +88,30 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 	}
 
 	/**
-	 * Searches for the leaf node that this point belongs to
+	 * Traverses the tree to find the leaf node for the provided point. As it traverses the tree each node it
+	 * passes through is passed to 'op'. Index of the leaf node is returned. The root node is not passed in
+	 * since all points belong to it.
 	 *
-	 * @param point (Input) Point used in the search
-	 * @param distanceFunction (Input) Function used to determine distance between nodes
-	 * @return The found leaf node
+	 * @param point (Input) Point
+	 * @param op Traversed nodes are passed to this function from level 0 to the leaf
+	 * @return index of the leaf node
 	 */
-	public Node searchToLeaf( TD point, PointDistance<TD> distanceFunction ) {
+	public int searchPathToLeaf( Point point, BoofLambdas.ProcessObject<Node> op ) {
 		int level = 0;
 		Node parent = nodes.get(0);
 
-		while (level < maximumLevels) {
-			if (parent.childrenIndexes.isEmpty()) {
-				return parent;
-			}
+		if (parent.isLeaf())
+			return 0;
 
+		while (level < maximumLevel) {
 			int bestNodeIdx = -1;
 			double bestDistance = Double.MAX_VALUE;
 
+			// Find the child/node/branch that the 'point' belongs to
 			for (int childIdx = 0; childIdx < parent.childrenIndexes.size; childIdx++) {
 				int nodeIdx = parent.childrenIndexes.get(childIdx);
 
-				TD desc = descriptions.getTemp(nodes.get(nodeIdx).indexDescription);
+				Point desc = descriptions.getTemp(nodes.get(nodeIdx).descIdx);
 				double distance = distanceFunction.distance(point, desc);
 				if (distance > bestDistance)
 					continue;
@@ -113,14 +121,19 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 			}
 
 			parent = nodes.get(bestNodeIdx);
+
+			// Pass in the node being explored
+			op.process(parent);
+
+			// See if it has reached a leaf and the search is finished
+			if (parent.isLeaf()) {
+				return bestNodeIdx;
+			}
+
 			level++;
 		}
 
 		throw new RuntimeException("Invalid tree. Max depth exceeded searching for leaf");
-	}
-
-	public int searchPathToLeaf( TD point, PointDistance<TD> distanceFunction, BoofLambdas.ProcessObject<Node> results ) {
-		return 0;
 	}
 
 	/**
@@ -129,26 +142,29 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 	 * @param op Every node is feed into this function
 	 */
 	public void traverseGraphDepthFirst( BoofLambdas.ProcessObject<Node> op ) {
-		FastArray<Node> queue = new FastArray<>(Node.class, maximumLevels);
+		FastArray<Node> queue = new FastArray<>(Node.class, maximumLevel);
 		queue.add(nodes.get(0));
-		DogArray_I32 branches = new DogArray_I32(maximumLevels);
+		DogArray_I32 branches = new DogArray_I32(maximumLevel);
 		branches.add(0);
+
+		if (nodes.get(0).isLeaf())
+			return;
 
 		// NOTE: Root node is intentionally skipped since it will contain all the features and has no information
 
-		while (!nodes.isEmpty()) {
-			Node n = nodes.getTail();
+		while (!queue.isEmpty()) {
+			Node n = queue.getTail();
 			int branch = branches.getTail();
 
 			// If there are no more children to traverse in this node go back to the parent
 			if (branch >= n.childrenIndexes.size) {
-				nodes.removeTail();
+				queue.removeTail();
 				branches.removeTail();
 				continue;
 			}
 
 			// next iteration will explore the next branch
-			branches.set(branches.size - 1, branch + 1);
+			branches.setTail(0, branch + 1);
 
 			// Pass in the child
 			n = nodes.get(n.childrenIndexes.get(branch));
@@ -168,7 +184,7 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 	 */
 	public void checkConfig() {
 		BoofMiscOps.checkTrue(branchFactor > 0, "branchFactor needs to be set");
-		BoofMiscOps.checkTrue(maximumLevels > 0, "maximumLevels needs to be set");
+		BoofMiscOps.checkTrue(maximumLevel > 0, "maximumLevels needs to be set");
 	}
 
 	/**
@@ -178,6 +194,9 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 		listData.reset();
 		descriptions.reset();
 		nodes.reset();
+		// create root node, which will contain the set of all points
+		Node root = nodes.grow();
+		root.id = 0;
 	}
 
 	/**
@@ -205,7 +224,7 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 		// Index of data associated with this node
 		public int dataIdx;
 		// index of the first mean in the list of descriptions. Means in a set are consecutive.
-		public int indexDescription;
+		public int descIdx;
 		// index of the first child in the list of nodes. Children are consecutive.
 		// If at the last level then this will point to an index in leaves
 		public final DogArray_I32 childrenIndexes = new DogArray_I32();
@@ -220,7 +239,7 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 			branch = -1;
 			parent = -1;
 			dataIdx = -1;
-			indexDescription = -1;
+			descIdx = -1;
 			childrenIndexes.reset();
 		}
 
@@ -229,7 +248,7 @@ public class HierarchicalVocabularyTree<TD extends TupleDesc<TD>, Data> {
 			branch = src.branch;
 			parent = src.parent;
 			dataIdx = src.dataIdx;
-			indexDescription = src.indexDescription;
+			descIdx = src.descIdx;
 			childrenIndexes.setTo(src.childrenIndexes);
 		}
 	}
