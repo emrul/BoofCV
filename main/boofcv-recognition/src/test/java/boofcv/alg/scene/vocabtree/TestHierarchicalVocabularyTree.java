@@ -140,7 +140,7 @@ class TestHierarchicalVocabularyTree {
 	}
 
 	public static class Packed2D implements PackedArray<Point2D_F64> {
-		List<Point2D_F64> list = new ArrayList<>();
+		public final List<Point2D_F64> list = new ArrayList<>();
 		@Override public void reset() {list.clear();}
 		@Override public void reserve( int numElements ) {}
 		@Override public void addCopy( Point2D_F64 element ) {list.add(element.copy());}

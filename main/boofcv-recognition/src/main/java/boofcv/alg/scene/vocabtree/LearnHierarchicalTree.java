@@ -56,7 +56,7 @@ public class LearnHierarchicalTree<Point> {
 	 * maximum number of levels
 	 *
 	 * @param factoryStorage point storage
-	 * @param factoryKMeans k-means
+	 * @param factoryKMeans k-means. Must be {@link StandardKMeans#initialize(long) initialized} in factory.
 	 */
 	public LearnHierarchicalTree( BoofLambdas.Factory<PackedArray<Point>> factoryStorage,
 								  BoofLambdas.Factory<StandardKMeans<Point>> factoryKMeans ) {
@@ -75,9 +75,6 @@ public class LearnHierarchicalTree<Point> {
 		tree.checkConfig();
 		tree.reset();
 		this.totalPoints = points.size();
-
-		// The first node is the root. It needs to
-		tree.nodes.grow();
 
 		// first level is provided by points
 		listPoints.resize(tree.maximumLevel - 1);
@@ -104,13 +101,10 @@ public class LearnHierarchicalTree<Point> {
 		StandardKMeans<Point> kmeans = listKMeans.get(level);
 
 		// Cluster the input points
-		kmeans.process(pointsInParent, tree.branchFactor);
+		// Be careful to not try to create more clusters than there are points
+		kmeans.process(pointsInParent, Math.min(pointsInParent.size(), tree.branchFactor));
 		DogArray_I32 assignments = kmeans.getAssignments();
 		List<Point> clusterMeans = kmeans.getBestClusters().toList();
-
-		// Process the points in each branch
-		PackedArray<Point> pointsInBranch = listPoints.get(level);
-		pointsInBranch.reserve(pointsInParent.size()/(tree.branchFactor - 1));
 
 		// Create the children nodes all at once. As a result the region descriptions will be close in memory
 		// and this "might" reduce cache misses in searching
@@ -122,7 +116,11 @@ public class LearnHierarchicalTree<Point> {
 		if (level == tree.maximumLevel - 1)
 			return;
 
+		// Load the points that are in the child sub region
 		Node parent = tree.nodes.get(parentNodeIdx);
+
+		PackedArray<Point> pointsInBranch = listPoints.get(level);
+		pointsInBranch.reserve(pointsInParent.size()/(tree.branchFactor - 1));
 		processChildren(tree, level, parent, pointsInParent, clusterMeans, assignments, pointsInBranch);
 	}
 
