@@ -19,6 +19,7 @@
 package boofcv.abst.scene;
 
 import boofcv.struct.image.ImageBase;
+import boofcv.struct.image.ImageType;
 import org.ddogleg.struct.DogArray;
 
 import java.io.Reader;
@@ -56,11 +57,13 @@ public interface ImageRecognition<T extends ImageBase<T>> {
 	 */
 	boolean findBestMatch( T queryImage, DogArray<Match> matches );
 
+	ImageType<T> getImageType();
+
 	/** References a match in the database to the query image */
 	class Match {
 		/** ID of matching image */
 		public String id;
-		/** Match score. Higher number is better. Scale is implementation dependent */
-		public double score;
+		/** Error. Larger the value less similar it is to the original. Meaning is implementation dependent. */
+		public double error;
 	}
 }

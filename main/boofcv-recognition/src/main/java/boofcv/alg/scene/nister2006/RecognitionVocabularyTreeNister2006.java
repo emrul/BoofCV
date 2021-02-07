@@ -52,6 +52,8 @@ import java.util.List;
  */
 public class RecognitionVocabularyTreeNister2006<Point> {
 
+	// TODO Support using L1-Norm
+
 	/** Vocabulary Tree */
 	public @Getter HierarchicalVocabularyTree<Point, LeafData> tree;
 
@@ -211,7 +213,7 @@ public class RecognitionVocabularyTreeNister2006<Point> {
 			sum += valueA*valueB;
 		}
 
-		return (float)Math.sqrt(2.0f - 2.0f*sum);
+		return (float)Math.sqrt(2.0f - 2.0f*sum); // TODO should it use L2-norm squared for speed?
 	}
 
 	/** Information about an image stored in the database */
