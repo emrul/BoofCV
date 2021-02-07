@@ -21,6 +21,7 @@ package boofcv.abst.scene;
 import boofcv.struct.image.ImageBase;
 import boofcv.struct.image.ImageType;
 import org.ddogleg.struct.DogArray;
+import org.ddogleg.struct.VerbosePrint;
 
 import java.io.Reader;
 import java.io.Writer;
@@ -34,7 +35,7 @@ import java.util.Iterator;
  *
  * @author Peter Abeles
  */
-public interface ImageRecognition<T extends ImageBase<T>> {
+public interface ImageRecognition<T extends ImageBase<T>> extends VerbosePrint {
 
 	void learnDescription( Iterator<T> images );
 

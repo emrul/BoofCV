@@ -18,6 +18,7 @@
 
 package boofcv.abst.scene.nister2006;
 
+import boofcv.testing.BoofStandardJUnit;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.fail;
@@ -25,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * @author Peter Abeles
  */
-class TestImageRecognitionNister2006 {
+class TestImageRecognitionNister2006 extends BoofStandardJUnit {
 	@Test void implement() {
 		fail("Implement");
 	}

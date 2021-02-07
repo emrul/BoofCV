@@ -18,15 +18,33 @@
 
 package boofcv.struct.kmeans;
 
-import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.fail;
+import boofcv.struct.feature.TupleDesc_F64;
+import org.ddogleg.clustering.ComputeMeanClusters;
+import org.ddogleg.struct.DogArray_F64;
 
 /**
  * @author Peter Abeles
  */
-class TestComputeMeanTuple_F64 {
-	@Test void implement() {
-		fail("Implement");
+class TestComputeMeanTuple_F64 extends GenericComputeMeanClustersChecks<TupleDesc_F64> {
+
+	int DOF = 3;
+
+	@Override public ComputeMeanClusters<TupleDesc_F64> createAlg() {
+		return new ComputeMeanTuple_F64();
+	}
+
+	@Override public PackedArray<TupleDesc_F64> createArray() {
+		return new PackedTupleArray_F64(DOF);
+	}
+
+	@Override public void pointToDoubleArray( TupleDesc_F64 src, DogArray_F64 dst ) {
+		dst.resize(DOF);
+		for (int i = 0; i < DOF; i++) {
+			dst.set(i, dst.get(i));
+		}
+	}
+
+	@Override public TupleDesc_F64 randomPoint() {
+		return new TupleDesc_F64(DOF);
 	}
 }

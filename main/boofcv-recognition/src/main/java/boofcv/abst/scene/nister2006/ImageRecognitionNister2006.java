@@ -27,21 +27,29 @@ import boofcv.alg.scene.vocabtree.HierarchicalVocabularyTree;
 import boofcv.alg.scene.vocabtree.LearnHierarchicalTree;
 import boofcv.factory.feature.detdesc.FactoryDetectDescribe;
 import boofcv.struct.feature.TupleDesc;
+import boofcv.struct.feature.TupleDesc_F64;
 import boofcv.struct.image.ImageBase;
 import boofcv.struct.image.ImageType;
+import boofcv.struct.kmeans.ComputeMeanTuple_F64;
 import boofcv.struct.kmeans.PackedArray;
 import boofcv.struct.kmeans.PackedTupleArray_F64;
+import boofcv.struct.kmeans.TuplePointDistanceEuclideanSq;
 import lombok.Getter;
 import lombok.Setter;
 import org.ddogleg.clustering.FactoryClustering;
+import org.ddogleg.clustering.PointDistance;
+import org.ddogleg.clustering.kmeans.StandardKMeans;
 import org.ddogleg.struct.DogArray;
 import org.ddogleg.struct.DogArray_I32;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.PrintStream;
 import java.io.Reader;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * High level implementation of {@link RecognitionVocabularyTreeNister2006} for {@link ImageRecognition}.
@@ -70,20 +78,28 @@ public class ImageRecognitionNister2006<Image extends ImageBase<Image>, TD exten
 	// Type of input image
 	ImageType<Image> imageType;
 
+	// If not null then print verbose information
+	PrintStream verbose;
+
 	public ImageRecognitionNister2006( ConfigImageRecognitionNister2006 config, ImageType<Image> imageType ) {
 		this.config = config;
-		this.detector = FactoryDetectDescribe.generic(config.features,imageType.getImageClass());
-		this.imageFeatures = new DogArray<TD>(()->detector.createDescription());
+		this.detector = FactoryDetectDescribe.generic(config.features, imageType.getImageClass());
+		this.imageFeatures = new DogArray<>(() -> detector.createDescription());
+		this.database = new RecognitionVocabularyTreeNister2006<>();
 	}
 
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override public void learnDescription( Iterator<Image> images ) {
-		PackedArray<TD> packedFeatures = (PackedArray)new PackedTupleArray_F64(detector.getNumberOfFeatures());
+		int DOF = detector.createDescription().size();
+		PackedArray<TD> packedFeatures = (PackedArray)new PackedTupleArray_F64(DOF);
 
 		// Keep track of where features from one image begins/ends
 		DogArray_I32 startIndex = new DogArray_I32();
 
 		// Detect features in all the images and save into a single array
 		while (images.hasNext()) {
+			if (verbose != null) verbose.println("describing image " + startIndex.size);
+
 			startIndex.add(packedFeatures.size());
 			detector.detect(images.next());
 			int N = detector.getNumberOfFeatures();
@@ -93,14 +109,33 @@ public class ImageRecognitionNister2006<Image extends ImageBase<Image>, TD exten
 			}
 		}
 		startIndex.add(packedFeatures.size());
+		if (verbose!=null) verbose.println("packedFeatures.size="+packedFeatures.size());
+
+		// Create the tree data structure
+		PointDistance distance = new TuplePointDistanceEuclideanSq.F64();
+		tree = new HierarchicalVocabularyTree<>(distance, new PackedTupleArray_F64(DOF), RecognitionVocabularyTreeNister2006.LeafData.class);
+		tree.branchFactor = config.tree.branchFactor;
+		tree.maximumLevel = config.tree.maximumLevel;
 
 		// Learn the tree's structure
+		if (verbose != null) verbose.println("learning the tree");
 		LearnHierarchicalTree<TD> learnTree = new LearnHierarchicalTree<>(
-				() -> (PackedArray)new PackedTupleArray_F64(detector.getNumberOfFeatures()),
-				() -> FactoryClustering.kMeans(config.kmeans,detector.getNumberOfFeatures(),detector.getDescriptionType()));
+				() -> (PackedArray)new PackedTupleArray_F64(DOF),
+				() -> {
+					// TODO simplify this
+					StandardKMeans kmeans = FactoryClustering.kMeans(config.kmeans,
+							new ComputeMeanTuple_F64(), distance, ()->new TupleDesc_F64(DOF));
+					kmeans.initialize(0xDEADBEEF);
+					return kmeans;
+				});
 		learnTree.process(packedFeatures, tree);
 
+		if (verbose!=null) {
+			verbose.println(" Tree {bf="+tree.branchFactor+" ml="+tree.maximumLevel+" nodes.size="+tree.nodes.size+"}");
+		}
+
 		// Learn the weight for each node in the tree
+		if (verbose != null) verbose.println("learning the weights");
 		LearnNodeWeights<TD> learnWeights = new LearnNodeWeights<>();
 		learnWeights.reset(tree);
 		for (int imgIdx = 1; imgIdx < startIndex.size; imgIdx++) {
@@ -175,5 +210,9 @@ public class ImageRecognitionNister2006<Image extends ImageBase<Image>, TD exten
 
 	@Override public ImageType<Image> getImageType() {
 		return imageType;
+	}
+
+	@Override public void setVerbose( @Nullable PrintStream out, @Nullable Set<String> set ) {
+		this.verbose = out;
 	}
 }
